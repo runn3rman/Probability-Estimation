@@ -1,0 +1,26 @@
+import random
+
+# function to simulate one game
+def play_game():
+    k = 0
+    while True:
+        k += 1  # count the toss
+        if random.choice(["H", "T"]) == "T":  # stop when tails
+            return 2 ** k  # winnings are 2^k
+
+# run many simulations and return average + max
+def simulate_games(num_simulations):
+    winnings = [play_game() for _ in range(num_simulations)]
+    avg_win = sum(winnings) / num_simulations
+    max_win = max(winnings)
+    return avg_win, max_win
+
+# trying  different sample sizes
+simulation_counts = [100, 1_000, 10_000, 100_000, 1_000_000]
+
+for n in simulation_counts:
+    avg, max_won = simulate_games(n)
+    print(f"Simulations: {n:,}")
+    print(f"  Average winnings: {avg:.2f}")
+    print(f"  Max winnings: {max_won}")
+    print()

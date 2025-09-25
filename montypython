@@ -1,0 +1,38 @@
+import random
+
+# simulate one full Monty Hall round; return (stay_win, switch_win)
+def play_once():
+    doors = (0, 1, 2)                         # three doors
+    car = random.randrange(3)                 # car placement
+    pick = random.randrange(3)                # my first guess
+
+    # host opens a goat door that's not my pick
+    goat_options = [d for d in doors if d != pick and d != car]
+    opened = random.choice(goat_options)      # host reveals a goat
+
+    # the "switch" door is the only remaining closed door
+    switch = next(d for d in doors if d != pick and d != opened)
+
+    stay_win = (pick == car)                  # if I stay, do I get the car?
+    switch_win = (switch == car)              # if I switch, do I get the car?
+    return stay_win, switch_win
+
+def simulate(n_games=100_000):                # run lots of games (>= 1,000)
+    stay_wins = 0
+    switch_wins = 0
+    for _ in range(n_games):
+        s, sw = play_once()
+        stay_wins += s
+        switch_wins += sw
+
+    stay_pct = 100.0 * stay_wins / n_games
+    switch_pct = 100.0 * switch_wins / n_games
+    return n_games, stay_pct, switch_pct
+
+if __name__ == "__main__":
+    for n in (1_000, 10_000, 100_000, 100_000_0):
+        n_games, stay_pct, switch_pct = simulate(n)
+        print(f"Games: {n_games:,}")
+        print(f"  Stay wins:    {stay_pct:6.2f}%")
+        print(f"  Switch wins:  {switch_pct:6.2f}%")
+        print()

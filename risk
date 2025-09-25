@@ -1,0 +1,173 @@
+import random
+import matplotlib.pyplot as plt
+from collections import Counter, defaultdict
+
+# roll a bunch of dice and return sorted (high → low)
+def roll_sorted_dice(num_dice):
+    return sorted([random.randint(1, 6) for _ in range(num_dice)], reverse=True)
+
+# resolve a single round of battle given attacker/defender dice counts
+# returns (attacker_losses, defender_losses)
+def play_one_round(attacker_dice, defender_dice):
+    attacker_rolls = roll_sorted_dice(attacker_dice)
+    defender_rolls = roll_sorted_dice(defender_dice)
+
+    attacker_losses = 0
+    defender_losses = 0
+
+    # compare highest rolls first
+    for a_roll, d_roll in zip(attacker_rolls, defender_rolls):
+        if a_roll > d_roll:
+            defender_losses += 1
+        else:  # ties go to defender
+            attacker_losses += 1
+
+    return attacker_losses, defender_losses
+
+
+# ---- Part a ----
+def one_round_probabilities(num_trials=200_000):
+    # attacker can roll 1–3, defender 1–2
+    dice_combos = [(1, 1), (1, 2), (2, 1), (2, 2), (3, 1), (3, 2)]
+
+    for attacker_dice, defender_dice in dice_combos:
+        outcomes = Counter()
+
+        for _ in range(num_trials):
+            result = play_one_round(attacker_dice, defender_dice)
+            outcomes[result] += 1
+
+        print(f"Attacker dice = {attacker_dice}, Defender dice = {defender_dice}")
+        for (att_lost, def_lost), count in sorted(outcomes.items()):
+            prob = count / num_trials
+            print(f"  Attacker lost {att_lost}, Defender lost {def_lost} → {prob:.3f}")
+        print()
+
+
+# ---- Part b ----
+def play_full_battle(starting_attackers, starting_defenders=5):
+    attackers = starting_attackers
+    defenders = starting_defenders
+
+    while attackers > 1 and defenders > 0:
+        attacker_dice = min(3, attackers - 1)   # must leave 1 behind
+        defender_dice = min(2, defenders)
+
+        att_lost, def_lost = play_one_round(attacker_dice, defender_dice)
+        attackers -= att_lost
+        defenders -= def_lost
+
+    return defenders == 0  # True if attacker wiped defenders
+
+
+def attacker_win_curve(num_trials=50_000):
+    attacker_sizes = []
+    win_rates = []
+
+    for starting_attackers in range(2, 21):
+        wins = sum(play_full_battle(starting_attackers) for _ in range(num_trials))
+        prob = wins / num_trials
+
+        attacker_sizes.append(starting_attackers)
+        win_rates.append(prob)
+
+    # make the chart
+    plt.figure(figsize=(9, 5))
+    plt.plot(attacker_sizes, win_rates, marker="o")
+    plt.axhline(0.5, linestyle="--", color="red")
+    plt.axhline(0.8, linestyle="--", color="green")
+    plt.xlabel("Attacker Armies (Defender fixed at 5)")
+    plt.ylabel("Probability Attacker Wins")
+    plt.title("Attacker win probability vs starting armies")
+    plt.xticks(range(2, 21))
+    plt.ylim(0, 1)
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig("attacker_win_curve.png")  # save instead of blocking
+
+    # figure out thresholds
+    min_for_50 = next((a for a, p in zip(attacker_sizes, win_rates) if p >= 0.5), None)
+    min_for_80 = next((a for a, p in zip(attacker_sizes, win_rates) if p >= 0.8), None)
+
+    return min_for_50, min_for_80
+
+def compare_dice_choices(num_trials=200_000):
+    print("\nExtra check: Is rolling fewer dice ever better?")
+
+    # attacker max choices = 1,2,3 ; defender max = 1,2
+    attacker_options = [1, 2, 3]
+    defender_options = [1, 2]
+
+    for att_dice in attacker_options:
+        for def_dice in defender_options:
+            # only valid if each side has enough armies for that many dice
+            results = Counter()
+            for _ in range(num_trials):
+                losses = play_one_round(att_dice, def_dice)
+                results[losses] += 1
+
+            # compute expected values
+            exp_att_loss = sum(losses[0] * count for losses, count in results.items()) / num_trials
+            exp_def_loss = sum(losses[1] * count for losses, count in results.items()) / num_trials
+
+            print(f"Attacker dice={att_dice}, Defender dice={def_dice} → "
+                  f"E[attacker loss]={exp_att_loss:.3f}, E[defender loss]={exp_def_loss:.3f}")
+    print("Rolling more dice always improves or equals your odds. "
+          "So, it’s never advantageous to roll fewer than allowed.\n")
+
+
+
+# ---- Part c ----
+def battle_distribution(att_start=10, def_start=10, num_trials=100_000):
+    outcomes = Counter()
+
+    for _ in range(num_trials):
+        attackers = att_start
+        defenders = def_start
+
+        while attackers > 1 and defenders > 0:
+            attacker_dice = min(3, attackers - 1)
+            defender_dice = min(2, defenders)
+
+            att_lost, def_lost = play_one_round(attacker_dice, defender_dice)
+            attackers -= att_lost
+            defenders -= def_lost
+
+        outcomes[(attackers, defenders)] += 1
+
+    print(f"Outcome probabilities for Attacker={att_start}, Defender={def_start}")
+    for (a, d), count in sorted(outcomes.items(), key=lambda kv: (-kv[0][0], kv[0][1])):
+        print(f"  Attacker left={a}, Defender left={d} → {count/num_trials:.3f}")
+
+    # heatmap of probabilities
+    table = defaultdict(list)
+    for a in range(1, att_start + 1):
+        for d in range(0, def_start + 1):
+            table[a].append(outcomes.get((a, d), 0) / num_trials)
+
+    plt.figure(figsize=(8, 6))
+    plt.imshow([table[a] for a in sorted(table.keys(), reverse=True)], aspect="auto", cmap="Blues")
+    plt.colorbar(label="Probability")
+    plt.xticks(range(def_start + 1), [str(d) for d in range(def_start + 1)])
+    plt.yticks(range(att_start), [str(a) for a in reversed(range(1, att_start + 1))])
+    plt.xlabel("Defender armies remaining")
+    plt.ylabel("Attacker armies remaining")
+    plt.title(f"Distribution of outcomes ({att_start} vs {def_start})")
+    plt.tight_layout()
+    plt.savefig("battle_distribution.png")
+
+
+if __name__ == "__main__":
+    print("Part a: One-round outcome probabilities")
+    one_round_probabilities()
+
+    compare_dice_choices()
+
+    print("Part b: Attacker win curve and thresholds")
+    min50, min80 = attacker_win_curve()
+    print(f"  Minimal attackers for ≥50% win chance: {min50}")
+    print(f"  Minimal attackers for ≥80% win chance: {min80}")
+
+    print("Part c: Outcome distribution for 10 vs 10 battle")
+    battle_distribution()
+
